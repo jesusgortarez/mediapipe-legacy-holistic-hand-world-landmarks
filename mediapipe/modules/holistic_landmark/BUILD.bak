@@ -1,8 +1,3 @@
-# MODIFICATION NOTICE:
-# This file was modified programmatically to include the ClosestToCenterDetectionCalculator
-# dependency for the Hand Recrop graphs.
-# Compatible with MediaPipe v0.10.21.
-
 # Copyright 2020 The MediaPipe Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -153,14 +148,11 @@ mediapipe_simple_subgraph(
         "//mediapipe/calculators/image:image_properties_calculator",
         "//mediapipe/calculators/tensor:image_to_tensor_calculator",
         "//mediapipe/calculators/tensor:inference_calculator",
-        "//mediapipe/calculators/tensor:tensors_to_detections_calculator",
-        "//mediapipe/calculators/tflite:ssd_anchors_calculator",
-        "//mediapipe/calculators/tflite:tflite_custom_op_resolver_calculator",
-        "//mediapipe/calculators/util:closest_to_center_detection_calculator",
-        "//mediapipe/calculators/util:detection_letterbox_removal_calculator",
-        "//mediapipe/calculators/util:detection_projection_calculator",
-        "//mediapipe/calculators/util:detections_to_rects_calculator",
-        "//mediapipe/calculators/util:non_max_suppression_calculator",
+        "//mediapipe/calculators/tensor:tensors_to_landmarks_calculator",
+        "//mediapipe/calculators/util:alignment_points_to_rects_calculator",
+        "//mediapipe/calculators/util:landmark_letterbox_removal_calculator",
+        "//mediapipe/calculators/util:landmark_projection_calculator",
+        "//mediapipe/calculators/util:landmarks_to_detection_calculator",
         "//mediapipe/calculators/util:rect_transformation_calculator",
     ],
 )
@@ -173,14 +165,11 @@ mediapipe_simple_subgraph(
         "//mediapipe/calculators/image:image_properties_calculator",
         "//mediapipe/calculators/tensor:image_to_tensor_calculator",
         "//mediapipe/calculators/tensor:inference_calculator",
-        "//mediapipe/calculators/tensor:tensors_to_detections_calculator",
-        "//mediapipe/calculators/tflite:ssd_anchors_calculator",
-        "//mediapipe/calculators/tflite:tflite_custom_op_resolver_calculator",
-        "//mediapipe/calculators/util:closest_to_center_detection_calculator",
-        "//mediapipe/calculators/util:detection_letterbox_removal_calculator",
-        "//mediapipe/calculators/util:detection_projection_calculator",
-        "//mediapipe/calculators/util:detections_to_rects_calculator",
-        "//mediapipe/calculators/util:non_max_suppression_calculator",
+        "//mediapipe/calculators/tensor:tensors_to_landmarks_calculator",
+        "//mediapipe/calculators/util:alignment_points_to_rects_calculator",
+        "//mediapipe/calculators/util:landmark_letterbox_removal_calculator",
+        "//mediapipe/calculators/util:landmark_projection_calculator",
+        "//mediapipe/calculators/util:landmarks_to_detection_calculator",
         "//mediapipe/calculators/util:rect_transformation_calculator",
     ],
 )

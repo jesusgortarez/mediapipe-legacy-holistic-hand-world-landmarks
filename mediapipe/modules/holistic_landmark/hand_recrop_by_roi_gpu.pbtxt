@@ -1,135 +1,168 @@
-# Predicts more accurate hand location (re-crop ROI) within a given ROI.
+# MODIFICATION NOTICE:
+# This file was modified programmatically to replace the hand recrop logic
+# with PalmDetection for metric-accurate 3D world landmarks.
+# Compatible with MediaPipe v0.10.21.
 
 type: "HandRecropByRoiGpu"
 
-# GPU image. (ImageFrame)
 input_stream: "IMAGE:input_video"
-# ROI (region of interest) within the given image where a palm/hand is located.
-# (NormalizedRect)
-input_stream: "ROI:roi"
+input_stream: "ROI:hand_roi_from_pose"
+output_stream: "HAND_ROI_FROM_RECROP:hand_roi_from_recrop"
 
-# Refined (more accurate) ROI to use for hand landmark prediction.
-# (NormalizedRect)
-output_stream: "HAND_ROI_FROM_RECROP:hand_roi_from_recrop_refined"
-
-# Transforms hand ROI from the input image to a 256x256 tensor. Preserves aspect
-# ratio, which results in a letterbox padding.
-node {
-  calculator: "ImageToTensorCalculator"
-  input_stream: "IMAGE_GPU:input_video"
-  input_stream: "NORM_RECT:roi"
-  output_stream: "TENSORS:initial_crop_tensor"
-  output_stream: "LETTERBOX_PADDING:letterbox_padding"
-  options: {
-    [mediapipe.ImageToTensorCalculatorOptions.ext] {
-      output_tensor_width: 256
-      output_tensor_height: 256
-      keep_aspect_ratio: true
-      output_tensor_float_range {
-        min: 0.0
-        max: 1.0
-      }
-      # For OpenGL origin should be at the top left corner.
-      gpu_origin: TOP_LEFT,
-    }
-  }
-}
-
-# Predicts hand re-crop rectangle.
-node {
-  calculator: "InferenceCalculator"
-  input_stream: "TENSORS:initial_crop_tensor"
-  output_stream: "TENSORS:landmark_tensors"
-  options: {
-    [mediapipe.InferenceCalculatorOptions.ext] {
-      model_path: "mediapipe/modules/holistic_landmark/hand_recrop.tflite"
-    }
-  }
-}
-
-# Decodes the landmark tensors into a vector of landmarks, where the landmark
-# coordinates are normalized by the size of the input image to the model. Two
-# landmarks represent two virtual points: crop and scale of the new crop.
-node {
-  calculator: "TensorsToLandmarksCalculator"
-  input_stream: "TENSORS:landmark_tensors"
-  output_stream: "NORM_LANDMARKS:landmarks"
-  options: {
-    [mediapipe.TensorsToLandmarksCalculatorOptions.ext] {
-      num_landmarks: 2
-      input_image_width: 256
-      input_image_height: 256
-    }
-  }
-}
-
-# Adjusts landmarks (already normalized to [0.f, 1.f]) on the letterboxed hand
-# image (after image transformation with the FIT scale mode) to the
-# corresponding locations on the same image with the letterbox removed (hand
-# image before image transformation).
-node {
-  calculator: "LandmarkLetterboxRemovalCalculator"
-  input_stream: "LANDMARKS:landmarks"
-  input_stream: "LETTERBOX_PADDING:letterbox_padding"
-  output_stream: "LANDMARKS:scaled_landmarks"
-}
-
-# Projects the landmarks from the cropped hand image to the corresponding
-# locations on the full image before cropping (input to the graph).
-node {
-  calculator: "LandmarkProjectionCalculator"
-  input_stream: "NORM_LANDMARKS:scaled_landmarks"
-  input_stream: "NORM_RECT:roi"
-  output_stream: "NORM_LANDMARKS:alignment_landmarks"
-}
-
-# Converts hand landmarks to a detection that tightly encloses all landmarks.
-node {
-  calculator: "LandmarksToDetectionCalculator"
-  input_stream: "NORM_LANDMARKS:alignment_landmarks"
-  output_stream: "DETECTION:hand_detection"
-}
-
-# Extracts image size from the input images.
 node {
   calculator: "ImagePropertiesCalculator"
   input_stream: "IMAGE_GPU:input_video"
   output_stream: "SIZE:image_size"
 }
 
-# Converts hand detection into a rectangle based on center and scale alignment
-# points.
 node {
-  calculator: "AlignmentPointsRectsCalculator"
-  input_stream: "DETECTION:hand_detection"
-  input_stream: "IMAGE_SIZE:image_size"
-  output_stream: "NORM_RECT:hand_roi_from_recrop"
+  calculator: "ImageToTensorCalculator"
+  input_stream: "IMAGE_GPU:input_video"
+  input_stream: "NORM_RECT:hand_roi_from_pose"
+  output_stream: "TENSORS:input_tensor"
+  output_stream: "MATRIX:transform_matrix"
+  output_stream: "LETTERBOX_PADDING:letterbox_padding"
   options: {
-    [mediapipe.DetectionsToRectsCalculatorOptions.ext] {
-      rotation_vector_start_keypoint_index: 0
-      rotation_vector_end_keypoint_index: 1
-      rotation_vector_target_angle_degrees: -90
+    [mediapipe.ImageToTensorCalculatorOptions.ext] {
+      output_tensor_width: 192
+      output_tensor_height: 192
+      keep_aspect_ratio: true
+      output_tensor_float_range { min: 0.0 max: 1.0 }
+      border_mode: BORDER_ZERO
+      gpu_origin: TOP_LEFT
     }
   }
 }
 
-# TODO: revise hand recrop roi calculation.
-# Slighly moves hand re-crop rectangle from wrist towards fingertips. Due to the
-# new hand cropping logic, crop border is to close to finger tips while a lot of
-# space is below the wrist. And when moving hand up fast (with fingers pointing
-# up) and using hand rect from the previous frame for tracking - fingertips can
-# be cropped. This adjustment partially solves it, but hand cropping logic
-# should be reviewed.
+node {
+  calculator: "TfLiteCustomOpResolverCalculator"
+  output_side_packet: "OP_RESOLVER:opresolver"
+  options: {
+    [mediapipe.TfLiteCustomOpResolverCalculatorOptions.ext] {
+      use_gpu: true
+    }
+  }
+}
+
+node {
+  calculator: "InferenceCalculator"
+  input_side_packet: "OP_RESOLVER:opresolver"
+  input_stream: "TENSORS:input_tensor"
+  output_stream: "TENSORS:detection_tensors"
+  options: {
+    [mediapipe.InferenceCalculatorOptions.ext] {
+      model_path: "mediapipe/modules/palm_detection/palm_detection_full.tflite"
+      delegate { gpu {} }
+    }
+  }
+}
+
+node {
+  calculator: "SsdAnchorsCalculator"
+  output_side_packet: "anchors"
+  options: {
+    [mediapipe.SsdAnchorsCalculatorOptions.ext] {
+      num_layers: 4
+      min_scale: 0.1484375
+      max_scale: 0.75
+      input_size_width: 192
+      input_size_height: 192
+      anchor_offset_x: 0.5
+      anchor_offset_y: 0.5
+      strides: 8
+      strides: 16
+      strides: 16
+      strides: 16
+      aspect_ratios: 1.0
+      fixed_anchor_size: true
+    }
+  }
+}
+
+node {
+  calculator: "TensorsToDetectionsCalculator"
+  input_stream: "TENSORS:detection_tensors"
+  input_side_packet: "ANCHORS:anchors"
+  output_stream: "DETECTIONS:raw_detections"
+  options: {
+    [mediapipe.TensorsToDetectionsCalculatorOptions.ext] {
+      num_classes: 1
+      num_boxes: 2016
+      num_coords: 18
+      box_coord_offset: 0
+      keypoint_coord_offset: 4
+      num_keypoints: 7
+      num_values_per_keypoint: 2
+      sigmoid_score: true
+      score_clipping_thresh: 100.0
+      reverse_output_order: true
+      x_scale: 192.0
+      y_scale: 192.0
+      h_scale: 192.0
+      w_scale: 192.0
+      min_score_thresh: 0.5
+    }
+  }
+}
+
+node {
+  calculator: "NonMaxSuppressionCalculator"
+  input_stream: "raw_detections"
+  output_stream: "filtered_detections"
+  options: {
+    [mediapipe.NonMaxSuppressionCalculatorOptions.ext] {
+      min_suppression_threshold: 0.3
+      max_num_detections: -1
+      overlap_type: INTERSECTION_OVER_UNION
+      return_empty_detections: true
+    }
+  }
+}
+
+node {
+  calculator: "ClosestToCenterDetectionCalculator"
+  input_stream: "DETECTIONS:filtered_detections"
+  output_stream: "DETECTIONS:centered_detections"
+}
+
+node {
+  calculator: "DetectionLetterboxRemovalCalculator"
+  input_stream: "DETECTIONS:centered_detections"
+  input_stream: "LETTERBOX_PADDING:letterbox_padding"
+  output_stream: "DETECTIONS:detections_in_crop"
+}
+
+node {
+  calculator: "DetectionProjectionCalculator"
+  input_stream: "DETECTIONS:detections_in_crop"
+  input_stream: "PROJECTION_MATRIX:transform_matrix"
+  output_stream: "DETECTIONS:projected_detections"
+}
+
+node {
+  calculator: "DetectionsToRectsCalculator"
+  input_stream: "DETECTIONS:projected_detections"
+  input_stream: "IMAGE_SIZE:image_size"
+  output_stream: "NORM_RECT:hand_roi_from_palm"
+  options: {
+    [mediapipe.DetectionsToRectsCalculatorOptions.ext] {
+      rotation_vector_start_keypoint_index: 0
+      rotation_vector_end_keypoint_index: 2
+      rotation_vector_target_angle_degrees: 90
+    }
+  }
+}
+
 node {
   calculator: "RectTransformationCalculator"
-  input_stream: "NORM_RECT:hand_roi_from_recrop"
+  input_stream: "NORM_RECT:hand_roi_from_palm"
   input_stream: "IMAGE_SIZE:image_size"
-  output_stream: "hand_roi_from_recrop_refined"
+  output_stream: "hand_roi_from_recrop"
   options: {
     [mediapipe.RectTransformationCalculatorOptions.ext] {
-      scale_x: 1.0
-      scale_y: 1.0
-      shift_y: -0.1
+      scale_x: 2.6
+      scale_y: 2.6
+      shift_y: -0.5
       square_long: true
     }
   }

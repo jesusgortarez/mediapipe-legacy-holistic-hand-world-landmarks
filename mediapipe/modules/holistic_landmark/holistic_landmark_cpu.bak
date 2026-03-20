@@ -1,6 +1,3 @@
-# MODIFICATION NOTICE:
-# This file was modified programmatically to expose hand WORLD_LANDMARKS.
-# Compatible with MediaPipe v0.10.21.
 # Predicts pose + left/right hand + face landmarks.
 #
 # It is required that:
@@ -32,7 +29,7 @@
 #
 # EXAMPLE:
 #   node {
-#     calculator: "HolisticLandmarkGpu"
+#     calculator: "HolisticLandmarkCpu"
 #     input_stream: "IMAGE:input_video"
 #     input_side_packet: "MODEL_COMPLEXITY:model_complexity"
 #     input_side_packet: "SMOOTH_LANDMARKS:smooth_landmarks"
@@ -44,8 +41,6 @@
 #     output_stream: "FACE_LANDMARKS:face_landmarks"
 #     output_stream: "LEFT_HAND_LANDMARKS:left_hand_landmarks"
 #     output_stream: "RIGHT_HAND_LANDMARKS:right_hand_landmarks"
-#     output_stream: "LEFT_HAND_WORLD_LANDMARKS:left_hand_world_landmarks"
-#     output_stream: "RIGHT_HAND_WORLD_LANDMARKS:right_hand_world_landmarks"
 #   }
 #
 # NOTE: if a pose/hand/face output is not present in the image, for this
@@ -54,9 +49,9 @@
 # the downstream calculators of the absence of this packet so that they don't
 # wait for it unnecessarily.
 
-type: "HolisticLandmarkGpu"
+type: "HolisticLandmarkCpu"
 
-# GPU image. (GpuBuffer)
+# CPU image. (ImageFrame)
 input_stream: "IMAGE:image"
 
 # Complexity of the pose landmark model: 0, 1 or 2. Landmark accuracy as well as
@@ -94,14 +89,10 @@ output_stream: "WORLD_LANDMARKS:pose_world_landmarks"
 output_stream: "LEFT_HAND_LANDMARKS:left_hand_landmarks"
 # 21 right hand landmarks. (NormalizedLandmarkList)
 output_stream: "RIGHT_HAND_LANDMARKS:right_hand_landmarks"
-# 21 left world hand landmarks. (LandmarkList)
-output_stream: "LEFT_HAND_WORLD_LANDMARKS:left_hand_world_landmarks"
-# 21 right world hand landmarks. (LandmarkList)
-output_stream: "RIGHT_HAND_WORLD_LANDMARKS:right_hand_world_landmarks"
 # 468 face landmarks. (NormalizedLandmarkList)
 output_stream: "FACE_LANDMARKS:face_landmarks"
 
-# Segmentation mask. (GpuBuffer in RGBA, with the same mask values in R and A)
+# Segmentation mask. (ImageFrame in ImageFormat::VEC32F1)
 output_stream: "SEGMENTATION_MASK:segmentation_mask"
 
 # Debug outputs
@@ -110,7 +101,7 @@ output_stream: "POSE_DETECTION:pose_detection"
 
 # Predicts pose landmarks.
 node {
-  calculator: "PoseLandmarkGpu"
+  calculator: "PoseLandmarkCpu"
   input_stream: "IMAGE:image"
   input_side_packet: "MODEL_COMPLEXITY:model_complexity"
   input_side_packet: "SMOOTH_LANDMARKS:smooth_landmarks"
@@ -126,13 +117,11 @@ node {
 
 # Predicts left and right hand landmarks based on the initial pose landmarks.
 node {
-  calculator: "HandLandmarksLeftAndRightGpu"
+  calculator: "HandLandmarksLeftAndRightCpu"
   input_stream: "IMAGE:image"
   input_stream: "POSE_LANDMARKS:pose_landmarks"
   output_stream: "LEFT_HAND_LANDMARKS:left_hand_landmarks"
   output_stream: "RIGHT_HAND_LANDMARKS:right_hand_landmarks"
-  output_stream: "LEFT_HAND_WORLD_LANDMARKS:left_hand_world_landmarks"
-  output_stream: "RIGHT_HAND_WORLD_LANDMARKS:right_hand_world_landmarks"
 }
 
 # Extracts face-related pose landmarks.
@@ -149,7 +138,7 @@ node {
 
 # Predicts face landmarks based on the initial pose landmarks.
 node {
-  calculator: "FaceLandmarksFromPoseGpu"
+  calculator: "FaceLandmarksFromPoseCpu"
   input_stream: "IMAGE:image"
   input_stream: "FACE_LANDMARKS_FROM_POSE:face_landmarks_from_pose"
   input_side_packet: "REFINE_LANDMARKS:refine_face_landmarks"

@@ -1,8 +1,3 @@
-# MODIFICATION NOTICE:
-# This file was modified programmatically to register the new 
-# ClosestToCenterDetectionCalculator.
-# Compatible with MediaPipe v0.10.21.
-
 # Copyright 2019 The MediaPipe Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,20 +17,6 @@ load("//mediapipe/framework/port:build_config.bzl", "mediapipe_proto_library")
 licenses(["notice"])
 
 package(default_visibility = ["//visibility:public"])
-
-cc_library(
-    name = "closest_to_center_detection_calculator",
-    srcs = ["closest_to_center_detection_calculator.cc"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//mediapipe/framework:calculator_framework",
-        "//mediapipe/framework/formats:detection_cc_proto",
-        "//mediapipe/framework/formats:location_data_cc_proto",
-        "//mediapipe/framework/port:status",
-        "@com_google_absl//absl/memory",
-    ],
-    alwayslink = 1,
-)
 
 cc_library(
     name = "alignment_points_to_rects_calculator",

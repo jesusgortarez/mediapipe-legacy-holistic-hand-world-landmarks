@@ -1,12 +1,8 @@
-# MODIFICATION NOTICE:
-# This file was modified programmatically to expose hand WORLD_LANDMARKS.
-# Compatible with MediaPipe v0.10.21.
-
 # Predicts hand landmarks within a ROI derived from hand-related pose landmarks.
 
-type: "HandLandmarksFromPoseGpu"
+type: "HandLandmarksFromPoseCpu"
 
-# GPU image. (ImageFrame)
+# CPU image. (ImageFrame)
 input_stream: "IMAGE:input_video"
 # Hand-related pose landmarks in [wrist, pinky, index] order.
 # (NormalizedLandmarkList)
@@ -14,9 +10,6 @@ input_stream: "HAND_LANDMARKS_FROM_POSE:hand_landmarks_from_pose"
 
 # Hand landmarks. (NormalizedLandmarkList)
 output_stream: "HAND_LANDMARKS:hand_landmarks"
-
-# Hand world landmarks. (LandmarkList)
-output_stream: "WORLD_LANDMARKS:hand_world_landmarks"
 
 # Debug outputs.
 # Hand ROI derived from hand-related landmarks, which defines the search region
@@ -46,7 +39,7 @@ node {
 # Extracts image size from the input images.
 node {
   calculator: "ImagePropertiesCalculator"
-  input_stream: "IMAGE_GPU:input_video"
+  input_stream: "IMAGE:input_video"
   output_stream: "SIZE:image_size"
 }
 
@@ -60,7 +53,7 @@ node {
 
 # Predicts hand re-crop rectangle on the current frame.
 node {
-  calculator: "HandRecropByRoiGpu",
+  calculator: "HandRecropByRoiCpu",
   input_stream: "IMAGE:input_video"
   input_stream: "ROI:hand_roi_from_pose"
   output_stream: "HAND_ROI_FROM_RECROP:hand_roi_from_recrop"
@@ -78,9 +71,8 @@ node {
 
 # Predicts hand landmarks from the tracking rectangle.
 node {
-  calculator: "HandLandmarkGpu"
+  calculator: "HandLandmarkCpu"
   input_stream: "IMAGE:input_video"
   input_stream: "ROI:hand_tracking_roi"
   output_stream: "LANDMARKS:hand_landmarks"
-  output_stream: "WORLD_LANDMARKS:hand_world_landmarks"
 }

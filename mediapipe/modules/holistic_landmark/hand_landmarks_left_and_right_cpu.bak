@@ -1,7 +1,3 @@
-# MODIFICATION NOTICE:
-# This file was modified programmatically to expose hand WORLD_LANDMARKS.
-# Compatible with MediaPipe v0.10.21.
-
 # Predicts left and right hand landmarks within corresponding ROIs derived from
 # hand-related pose landmarks.
 
@@ -16,11 +12,6 @@ input_stream: "POSE_LANDMARKS:pose_landmarks"
 output_stream: "LEFT_HAND_LANDMARKS:left_hand_landmarks"
 # RIght hand landmarks. (NormalizedLandmarkList)
 output_stream: "RIGHT_HAND_LANDMARKS:right_hand_landmarks"
-
-# Left hand world landmarks. (LandmarkList)
-output_stream: "LEFT_HAND_WORLD_LANDMARKS:left_hand_world_landmarks"
-# RIght hand world landmarks. (LandmarkList)
-output_stream: "RIGHT_HAND_WORLD_LANDMARKS:right_hand_world_landmarks"
 
 # Debug outputs.
 output_stream: "LEFT_HAND_ROI_FROM_POSE:left_hand_roi_from_pose"
@@ -51,7 +42,6 @@ node {
   input_stream: "IMAGE:input_video"
   input_stream: "HAND_LANDMARKS_FROM_POSE:left_hand_landmarks_from_pose"
   output_stream: "HAND_LANDMARKS:left_hand_landmarks"
-  output_stream: "WORLD_LANDMARKS:left_hand_world_landmarks"
   # Debug outputs.
   output_stream: "HAND_ROI_FROM_POSE:left_hand_roi_from_pose"
   output_stream: "HAND_ROI_FROM_RECROP:left_hand_roi_from_recrop"
@@ -79,7 +69,6 @@ node {
   input_stream: "IMAGE:input_video"
   input_stream: "HAND_LANDMARKS_FROM_POSE:right_hand_landmarks_from_pose"
   output_stream: "HAND_LANDMARKS:right_hand_landmarks"
-  output_stream: "WORLD_LANDMARKS:right_hand_world_landmarks"
   # Debug outputs.
   output_stream: "HAND_ROI_FROM_POSE:right_hand_roi_from_pose"
   output_stream: "HAND_ROI_FROM_RECROP:right_hand_roi_from_recrop"

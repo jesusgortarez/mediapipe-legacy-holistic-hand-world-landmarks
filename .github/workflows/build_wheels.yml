@@ -1,0 +1,350 @@
+name: Build MediaPipe Wheels (Desktop Platforms)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_windows:
+        description: "Compilar para Windows"
+        type: boolean
+        default: true
+      build_linux:
+        description: "Compilar para Linux (manylinux)"
+        type: boolean
+        default: false
+      build_macos:
+        description: "Compilar para macOS (Intel y Apple Silicon)"
+        type: boolean
+        default: false
+      build_py39:
+        description: "Compilar para Python 3.9"
+        type: boolean
+        default: false
+      build_py310:
+        description: "Compilar para Python 3.10"
+        type: boolean
+        default: false
+      build_py311:
+        description: "Compilar para Python 3.11"
+        type: boolean
+        default: false
+      build_py312:
+        description: "Compilar para Python 3.12"
+        type: boolean
+        default: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      windows_matrix: ${{ steps.set-matrix.outputs.windows_matrix }}
+      linux_matrix: ${{ steps.set-matrix.outputs.linux_matrix }}
+      macos_matrix: ${{ steps.set-matrix.outputs.macos_matrix }}
+      run_windows: ${{ steps.set-matrix.outputs.run_windows }}
+      run_linux: ${{ steps.set-matrix.outputs.run_linux }}
+      run_macos: ${{ steps.set-matrix.outputs.run_macos }}
+    steps:
+      - name: Determinar matrices de ejecucion
+        id: set-matrix
+        shell: bash
+        env:
+          IN_PY39: ${{ inputs.build_py39 }}
+          IN_PY310: ${{ inputs.build_py310 }}
+          IN_PY311: ${{ inputs.build_py311 }}
+          IN_PY312: ${{ inputs.build_py312 }}
+          IN_WIN: ${{ inputs.build_windows }}
+          IN_LIN: ${{ inputs.build_linux }}
+          IN_MAC: ${{ inputs.build_macos }}
+        run: |
+          versions=("3.9" "3.10" "3.11" "3.12")
+          tags=("py39" "py310" "py311" "py312")
+          cibw_builds=("cp39-*" "cp310-*" "cp311-*" "cp312-*")
+          flags=("$IN_PY39" "$IN_PY310" "$IN_PY311" "$IN_PY312")
+
+          windows_include=""
+          linux_include=""
+          macos_include=""
+
+          for i in "${!versions[@]}"; do
+            input_val="${flags[$i]}"
+            
+            if [ "$input_val" = "true" ]; then
+              ver="${versions[$i]}"
+              tag="${tags[$i]}"
+              cibw="${cibw_builds[$i]}"
+
+              win_item="{\"python-version\":\"$ver\",\"python-tag\":\"$tag\"}"
+              lin_item="{\"python-version\":\"$ver\",\"python-tag\":\"$tag\",\"cibw-build\":\"$cibw\"}"
+              mac_item="{\"python-version\":\"$ver\",\"python-tag\":\"$tag\"}"
+
+              if [ -z "$windows_include" ]; then
+                windows_include="$win_item"
+                linux_include="$lin_item"
+                macos_include="$mac_item"
+              else
+                windows_include="$windows_include,$win_item"
+                linux_include="$linux_include,$lin_item"
+                macos_include="$macos_include,$mac_item"
+              fi
+            fi
+          done
+
+          echo "windows_matrix={\"include\":[$windows_include]}" >> $GITHUB_OUTPUT
+          echo "linux_matrix={\"include\":[$linux_include]}" >> $GITHUB_OUTPUT
+          echo "macos_matrix={\"include\":[$macos_include]}" >> $GITHUB_OUTPUT
+
+          if [ "$IN_WIN" = "true" ] && [ -n "$windows_include" ]; then
+            echo "run_windows=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_windows=false" >> $GITHUB_OUTPUT
+          fi
+
+          if [ "$IN_LIN" = "true" ] && [ -n "$linux_include" ]; then
+            echo "run_linux=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_linux=false" >> $GITHUB_OUTPUT
+          fi
+
+          if [ "$IN_MAC" = "true" ] && [ -n "$macos_include" ]; then
+            echo "run_macos=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_macos=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-windows:
+    needs: setup
+    if: ${{ needs.setup.outputs.run_windows == 'true' }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.windows_matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies (Pinned)
+        run: |
+          python -m pip install --upgrade pip==24.0
+          pip install setuptools==69.5.1 wheel==0.43.0 numpy==1.26.4 opencv-python==4.9.0.80 protobuf==4.24.4
+
+      - name: Install MSYS2 (Pinned)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            patch
+            unzip
+
+      - name: Descargar e instalar OpenCV 3.4.10 para Windows
+        shell: bash
+        run: |
+          curl -L https://github.com/opencv/opencv/releases/download/3.4.10/opencv-3.4.10-vc14_vc15.exe -o opencv_installer.exe
+          7z x opencv_installer.exe -o/c/
+          echo "Verificando instalación de OpenCV..."
+          if [ -d "/c/opencv/build/x64/vc15/lib" ]; then
+            echo "Directorio encontrado. Listando archivos:"
+            ls /c/opencv/build/x64/vc15/lib/opencv_world3410*
+          else
+            echo "ERROR: No se encontró la ruta de OpenCV. Contenido de C:/"
+            ls -d /c/*/
+            exit 1
+          fi
+
+      - name: Forzar Bazel 6.5.0 nativo
+        shell: bash
+        run: |
+          mkdir -p /c/bazel_custom
+          curl -L https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-windows-x86_64.exe -o /c/bazel_custom/bazel.exe
+          echo "C:\bazel_custom" >> $GITHUB_PATH
+
+      - name: Install Bazelisk (Pinned)
+        run: npm install -g @bazel/bazelisk@1.19.0
+
+      - name: Install protoc (Pinned)
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "24.4"
+
+      - name: Configurar recursos de Bazel
+        shell: bash
+        run: |
+          echo "build --jobs=1" >> .bazelrc
+          echo "build --local_ram_resources=4096" >> .bazelrc
+          echo "build --define MEDIAPIPE_DISABLE_GPU=1" >> .bazelrc
+          echo "build --verbose_failures" >> .bazelr
+
+      - name: Corregir error de version PEP 440 en setup.py
+        shell: bash
+        run: sed -i "s/'dev'/'0.10.21'/g" setup.py
+
+      - name: Build Python Wheel (Windows, ${{ matrix.python-version }})
+        run: python setup.py bdist_wheel
+        env:
+          BAZEL_VC: "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC"
+          USE_BAZEL_VERSION: "6.5.0"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediapipe-wheel-windows-${{ matrix.python-tag }}
+          path: dist/*.whl
+
+  build-linux:
+    needs: setup
+    if: ${{ needs.setup.outputs.run_linux == 'true' }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.linux_matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Corregir error de version PEP 440 en setup.py
+        shell: bash
+        run: sed -i "s/'dev'/'0.10.21'/g" setup.py
+
+      - name: Build Linux wheels with cibuildwheel (${{ matrix.python-version }})
+        uses: pypa/cibuildwheel@v2.17.0
+        env:
+          CIBW_BUILD: ${{ matrix.cibw-build }}
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_ENVIRONMENT: "USE_BAZEL_VERSION=6.5.0"
+          CIBW_BEFORE_BUILD: >
+            python -m pip install --upgrade pip==24.0 &&
+            pip install setuptools==69.5.1 wheel==0.43.0 numpy==1.26.4 opencv-python==4.9.0.80 protobuf==4.24.4
+          CIBW_BEFORE_ALL: >
+            curl -L https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-linux-x86_64 -o /usr/local/bin/bazel &&
+            chmod +x /usr/local/bin/bazel &&
+            curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v24.4/protoc-24.4-linux-x86_64.zip &&
+            unzip -o protoc-24.4-linux-x86_64.zip -d /usr/local &&
+            chmod +x /usr/local/bin/protoc
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediapipe-wheel-linux-manylinux-${{ matrix.python-tag }}
+          path: ./wheelhouse/*.whl
+
+  build-macos-intel:
+    needs: setup
+    if: ${{ needs.setup.outputs.run_macos == 'true' }}
+    runs-on: macos-13
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.macos_matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Python dependencies (Pinned)
+        run: |
+          python -m pip install --upgrade pip==24.0
+          pip install setuptools==69.5.1 wheel==0.43.0 numpy==1.26.4 opencv-python==4.9.0.80 protobuf==4.24.4
+
+      - name: Forzar Bazel 6.5.0 nativo
+        shell: bash
+        run: |
+          mkdir -p /tmp/bazel_custom
+          curl -L https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-darwin-x86_64 -o /tmp/bazel_custom/bazel
+          chmod +x /tmp/bazel_custom/bazel
+          echo "/tmp/bazel_custom" >> $GITHUB_PATH
+
+      - name: Install Bazelisk (Pinned)
+        run: npm install -g @bazel/bazelisk@1.19.0
+
+      - name: Install protoc (Pinned)
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "24.4"
+
+      - name: Configurar recursos de Bazel
+        shell: bash
+        run: |
+          echo "build --jobs=1" >> .bazelrc
+          echo "build --local_ram_resources=4096" >> .bazelrc
+          echo "build --define MEDIAPIPE_DISABLE_GPU=1" >> .bazelrc
+
+      - name: Corregir error de version PEP 440 en setup.py
+        shell: bash
+        run: sed -i "s/'dev'/'0.10.21'/g" setup.py
+
+      - name: Build Python Wheel (macOS Intel, ${{ matrix.python-version }})
+        run: python setup.py bdist_wheel
+        env:
+          USE_BAZEL_VERSION: "6.5.0"
+
+      - name: Upload macOS Intel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediapipe-wheel-macos-intel-${{ matrix.python-tag }}
+          path: dist/*.whl
+
+  build-macos-silicon:
+    needs: setup
+    if: ${{ needs.setup.outputs.run_macos == 'true' }}
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.macos_matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Python dependencies (Pinned)
+        run: |
+          python -m pip install --upgrade pip==24.0
+          pip install setuptools==69.5.1 wheel==0.43.0 numpy==1.26.4 opencv-python==4.9.0.80 protobuf==4.24.4
+
+      - name: Forzar Bazel 6.5.0 nativo
+        shell: bash
+        run: |
+          mkdir -p /tmp/bazel_custom
+          curl -L https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-darwin-arm64 -o /tmp/bazel_custom/bazel
+          chmod +x /tmp/bazel_custom/bazel
+          echo "/tmp/bazel_custom" >> $GITHUB_PATH
+
+      - name: Install Bazelisk (Pinned)
+        run: npm install -g @bazel/bazelisk@1.19.0
+
+      - name: Install protoc (Pinned)
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "24.4"
+
+      - name: Configurar recursos de Bazel
+        shell: bash
+        run: |
+          echo "build --jobs=1" >> .bazelrc
+          echo "build --local_ram_resources=4096" >> .bazelrc
+          echo "build --define MEDIAPIPE_DISABLE_GPU=1" >> .bazelrc
+
+      - name: Corregir error de version PEP 440 en setup.py
+        shell: bash
+        run: sed -i "s/'dev'/'0.10.21'/g" setup.py
+
+      - name: Build Python Wheel (macOS Apple Silicon, ${{ matrix.python-version }})
+        run: python setup.py bdist_wheel
+        env:
+          USE_BAZEL_VERSION: "6.5.0"
+
+      - name: Upload macOS Silicon artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediapipe-wheel-macos-silicon-${{ matrix.python-tag }}
+          path: dist/*.whl

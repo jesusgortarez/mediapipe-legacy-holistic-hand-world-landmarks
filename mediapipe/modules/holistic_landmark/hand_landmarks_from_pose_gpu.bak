@@ -1,7 +1,3 @@
-# MODIFICATION NOTICE:
-# This file was modified programmatically to expose hand WORLD_LANDMARKS.
-# Compatible with MediaPipe v0.10.21.
-
 # Predicts hand landmarks within a ROI derived from hand-related pose landmarks.
 
 type: "HandLandmarksFromPoseGpu"
@@ -14,9 +10,6 @@ input_stream: "HAND_LANDMARKS_FROM_POSE:hand_landmarks_from_pose"
 
 # Hand landmarks. (NormalizedLandmarkList)
 output_stream: "HAND_LANDMARKS:hand_landmarks"
-
-# Hand world landmarks. (LandmarkList)
-output_stream: "WORLD_LANDMARKS:hand_world_landmarks"
 
 # Debug outputs.
 # Hand ROI derived from hand-related landmarks, which defines the search region
@@ -82,5 +75,4 @@ node {
   input_stream: "IMAGE:input_video"
   input_stream: "ROI:hand_tracking_roi"
   output_stream: "LANDMARKS:hand_landmarks"
-  output_stream: "WORLD_LANDMARKS:hand_world_landmarks"
 }
