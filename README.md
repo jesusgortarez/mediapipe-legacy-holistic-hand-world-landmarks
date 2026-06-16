@@ -36,10 +36,10 @@ Para preservar la eficiencia del pipeline integrado y evitar los procesos de com
    pip install [URL_DEL_ARCHIVO_WHL]
    ```
 
-### Instalación Windows
+### Instalación Windows (Ejemplo python 3.12)
 
 ```bash
- pip install mediapipe==0.10.21 --find-links https://github.com/jesusgortarez/mediapipe-legacy-holistic-hand-world-landmarks/releases/tag/v0.10.21-patched
+ pip install https://github.com/jesusgortarez/mediapipe-legacy-holistic-hand-world-landmarks/releases/download/v.0.10.21-patched/mediapipe-0.10.21-cp312-cp312-win_amd64.whl
 ```
 
 ## Verificación de Resultados
