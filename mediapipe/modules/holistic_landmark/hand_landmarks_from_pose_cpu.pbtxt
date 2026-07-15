@@ -76,11 +76,28 @@ node {
   output_stream: "HAND_TRACKING_ROI:hand_tracking_roi"
 }
 
-# Predicts hand landmarks from the tracking rectangle.
+# 1. Primera pasada para encontrar la mano usando el ROI inicial de Holistic
 node {
   calculator: "HandLandmarkCpu"
   input_stream: "IMAGE:input_video"
   input_stream: "ROI:hand_tracking_roi"
+  output_stream: "LANDMARKS:rough_hand_landmarks"
+}
+
+# 2. Convertir los puntos encontrados en una caja de seguimiento PERFECTA 
+# (matemáticamente idéntica a la que genera el modelo Hands standalone)
+node {
+  calculator: "HandLandmarksToRoi"
+  input_stream: "LANDMARKS:rough_hand_landmarks"
+  input_stream: "IMAGE_SIZE:image_size"
+  output_stream: "ROI:perfect_hand_tracking_roi"
+}
+
+# 3. Segunda pasada para obtener los world_landmarks con calibración milimétrica
+node {
+  calculator: "HandLandmarkCpu"
+  input_stream: "IMAGE:input_video"
+  input_stream: "ROI:perfect_hand_tracking_roi"
   output_stream: "LANDMARKS:hand_landmarks"
   output_stream: "WORLD_LANDMARKS:hand_world_landmarks"
 }
